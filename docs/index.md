@@ -39,12 +39,12 @@ type AccessReducedEvent =
 ### Shared rules
 
 - **Emails** are trimmed and lowercased before they reach the adapter, in `createUser`, `createUserWithInvite` and `findUserByEmail`. `Dana@Example.com` and `dana@example.com` are the same user.
-- **Taking access away** (`deleteUser`, `disableUser`, `removeFromGroup`) runs these steps in order:
+- **Taking access away** (`deleteUser`, `disableUser`, `removeFromGroup`, and `deleteGroup` for each member) runs these steps in order:
   1. the change at the provider
-  2. provider sign-out (`signOutEverywhere`), for `disableUser` and `removeFromGroup`. Deleting already ends the user's tokens at the provider, so `deleteUser` skips it
+  2. provider sign-out (`signOutEverywhere`), for everything but `deleteUser`. Deleting already ends the user's tokens at the provider, so `deleteUser` skips it
   3. `onAccessReduced`
 
-  If step 2 or 3 fails, the method throws `AccessReductionIncompleteError` and the provider change stands. All three methods are safe to repeat and run every step each time, so calling the same method again is the recovery.
+  If step 2 or 3 fails, the method throws `AccessReductionIncompleteError` and the provider change stands. `deleteUser`, `disableUser` and `removeFromGroup` are safe to repeat and run every step each time, so calling the same method again is the recovery. `deleteGroup` stops at the member whose step failed and leaves the group in place; the member is already out of it, so calling `deleteGroup` again wouldn't reach them. Call `removeFromGroup(error.userId, group)`, then `deleteGroup` again. The error's message says so.
 - **Provider sign-out revokes refresh tokens.** Access and ID tokens already issued stay valid until they expire (about an hour by default on Cognito). Ending the app's sessions in `onAccessReduced` is what takes effect immediately.
 - **Lists** are async iterators over the adapter's pages. The next page is fetched only when the loop reaches it, and `break` stops fetching.
 - **Optional features:** a method the adapter lacks throws `NotSupportedError`. `supports` tells you beforehand.
@@ -70,7 +70,7 @@ type AccessReducedEvent =
 | `listUserGroups(userId)` | `AsyncGenerator<string>` | The names of the groups a user is in. |
 | `listGroupMembers(group)` | `AsyncGenerator<IdpUser>` | Throws `GroupNotFoundError`. |
 | `ensureGroup(group)` | `void` | Creates the group, or does nothing if it exists, including when another caller creates it at the same moment. |
-| `deleteGroup(group)` | `void` | Removes every member first. Doesn't call `onAccessReduced`; to end members' sessions, call `removeFromGroup` for each before deleting it. |
+| `deleteGroup(group)` | `void` | Removes every member as `removeFromGroup` does (provider sign-out, then `onAccessReduced` for each), then deletes the group. Throws `GroupNotFoundError`. See **Taking access away** for recovering from a failure part way. |
 
 Unless a row says otherwise, a method addressing a missing user throws `UserNotFoundError`.
 
@@ -78,6 +78,22 @@ Unless a row says otherwise, a method addressing a missing user throws `UserNotF
 |---|---|
 | `adapter` | The adapter passed in, for its `native` client and anything the shared methods don't cover. Calls made on it directly skip the shared rules. |
 | `supports` | `{ createUserWithInvite: boolean; resendInvite: boolean }`: which optional features the adapter has. |
+
+## `generateTemporaryPassword(options?)`
+
+```ts
+import { generateTemporaryPassword } from "idp-admin"
+
+await admin.createUser({ email, temporaryPassword: generateTemporaryPassword() })
+```
+
+A random password for `createUser` or a temporary `setPassword`, from Node's cryptographic random source (`crypto.randomInt`).
+
+| Option | Default | Meaning |
+|---|---|---|
+| `length` | `16` | A whole number from 8 to 256. Anything else throws a `RangeError`. |
+
+It always contains at least one uppercase letter, lowercase letter, digit and symbol, in random positions, so the default password policies of Cognito and Keycloak accept it. Symbols are from `!@#$%^&*`, which every provider accepts and which need no escaping in an email or a URL. If your pool or realm requires more than 16 characters, pass a matching `length`.
 
 ## Types
 
@@ -146,13 +162,14 @@ Every error idp-admin throws on purpose extends `IdpAdminError`, so `instanceof 
 | `GroupNotFoundError` | `GROUP_NOT_FOUND` | `group` | The group doesn't exist. |
 | `GroupExistsError` | `GROUP_EXISTS` | `group` | Creating a group that exists. |
 | `NotSupportedError` | `NOT_SUPPORTED` | `feature` | The adapter can't do what was asked; `feature` names the method or option. |
-| `AccessReductionIncompleteError` | `ACCESS_REDUCTION_INCOMPLETE` | `userId`, `action`, `failedStep`, `cause` | A user was deleted, disabled or removed from a group at the provider, but a later step failed. |
+| `AccessReductionIncompleteError` | `ACCESS_REDUCTION_INCOMPLETE` | `userId`, `action`, `group`, `failedStep`, `cause` | A user was deleted, disabled or removed from a group at the provider, but a later step failed. |
 
 `AccessReductionIncompleteError`:
 - `action` is `"deleted"`, `"disabled"` or `"removed-from-group"`: what already happened at the provider. It is not undone.
+- `group` is the group they were removed from, for `"removed-from-group"`; otherwise `undefined`.
 - `failedStep` is `"provider-sign-out"` or `"hook"`: the step after it that failed.
 - `cause` is the original error.
-- Calling the same method again is safe and repeats every step.
+- Calling the same method again is safe and repeats every step, except after `deleteGroup`: call `removeFromGroup(userId, group)`, then `deleteGroup` again.
 
 ## `IdpAdapter<TAttr>`
 

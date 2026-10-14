@@ -243,7 +243,90 @@ describe("IdpAdmin removeFromGroup", () => {
         const user = await admin.createUser({ email: "dana@example.com", temporaryPassword: PASSWORD })
 
         await expect(admin.removeFromGroup(user.id, "Admin"))
-            .rejects.toMatchObject({ code: "ACCESS_REDUCTION_INCOMPLETE", userId: user.id, action: "removed-from-group", failedStep: "hook" })
+            .rejects.toMatchObject({ code: "ACCESS_REDUCTION_INCOMPLETE", userId: user.id, action: "removed-from-group", group: "Admin", failedStep: "hook" })
+    })
+})
+
+describe("IdpAdmin deleteGroup", () => {
+    async function groupWith(admin: IdpAdmin<"company">, group: string, names: string[]){
+        await admin.ensureGroup(group)
+        const users = []
+        for(const name of names){
+            const user = await admin.createUser({ email: `${name}@example.com`, temporaryPassword: PASSWORD })
+            await admin.addToGroup(user.id, group)
+            users.push(user)
+        }
+        return users
+    }
+
+    it("removes and signs out every member, fires the hook for each, then deletes the group", async () => {
+        const { fake, admin, events } = setup()
+        const [a, b] = await groupWith(admin, "Contractor-1", ["a", "b"])
+
+        await admin.deleteGroup("Contractor-1")
+
+        expect(await fake.groupExists("Contractor-1")).toBe(false)
+        expect(fake.signOuts).toEqual([a.id, b.id])
+        expect(events).toEqual([
+            { userId: a.id, action: "removed-from-group", group: "Contractor-1" },
+            { userId: b.id, action: "removed-from-group", group: "Contractor-1" },
+        ])
+    })
+
+    it("fires each member's hook before the group is deleted", async () => {
+        const seen: boolean[] = []
+        const { fake, admin } = setup({ onAccessReduced: async () => { seen.push(await fake.groupExists("Contractor-1")) } })
+        await groupWith(admin, "Contractor-1", ["a"])
+
+        await admin.deleteGroup("Contractor-1")
+
+        expect(seen).toEqual([true])
+    })
+
+    it("reaches every member across pages", async () => {
+        const { admin, events } = setup({ pageSize: 2 })
+        const users = await groupWith(admin, "Contractor-1", ["a", "b", "c", "d", "e"])
+
+        await admin.deleteGroup("Contractor-1")
+
+        expect(events.map((event) => event.userId)).toEqual(users.map((user) => user.id))
+    })
+
+    it("deletes an empty group without firing the hook", async () => {
+        const { fake, admin, events } = setup()
+        await admin.ensureGroup("Empty")
+
+        await admin.deleteGroup("Empty")
+
+        expect(await fake.groupExists("Empty")).toBe(false)
+        expect(events).toEqual([])
+    })
+
+    it("throws GroupNotFoundError for a group that doesn't exist", async () => {
+        const { admin, events } = setup()
+
+        await expect(admin.deleteGroup("Nope")).rejects.toEqual(new GroupNotFoundError("Nope"))
+        expect(events).toEqual([])
+    })
+
+    it("stops at a member whose hook fails, leaving the group in place, and can be recovered", async () => {
+        let failFor: string | null = null
+        const { fake, admin } = setup({ onAccessReduced: ({ userId }) => { if(userId === failFor) throw new Error("db down") } })
+        const [, b, c] = await groupWith(admin, "Contractor-1", ["a", "b", "c"])
+        failFor = b.id
+
+        const error = await admin.deleteGroup("Contractor-1").catch((e: unknown) => e)
+
+        expect(error).toBeInstanceOf(AccessReductionIncompleteError)
+        expect(error).toMatchObject({ userId: b.id, action: "removed-from-group", group: "Contractor-1", failedStep: "hook" })
+        expect((error as Error).message).toContain("Call removeFromGroup for this user and group, then deleteGroup again.")
+        expect(await fake.groupExists("Contractor-1")).toBe(true)
+        expect((await collect(admin.listGroupMembers("Contractor-1"))).map((user) => user.id)).toEqual([c.id])
+
+        failFor = null
+        await admin.removeFromGroup(b.id, "Contractor-1")
+        await admin.deleteGroup("Contractor-1")
+        expect(await fake.groupExists("Contractor-1")).toBe(false)
     })
 })
 

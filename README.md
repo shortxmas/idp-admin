@@ -72,7 +72,7 @@ const admin = new IdpAdmin(adapter, {
 `attributes` maps the names your app uses to the provider's own, and only those names compile.
 
 ```ts
-import { UserExistsError } from "idp-admin"
+import { UserExistsError, generateTemporaryPassword } from "idp-admin"
 
 // create a user who must set their own password at first sign-in; send them the temporary one yourself
 try{
@@ -80,7 +80,7 @@ try{
         email: "Dana@Example.com",   // stored and matched as dana@example.com
         name: "Dana Lee",
         attributes: { company: "Acme" },
-        temporaryPassword: "Temp-pass-1!",
+        temporaryPassword: generateTemporaryPassword(),
     })
     await admin.ensureGroup("admins")
     await admin.addToGroup(user.id, "admins")

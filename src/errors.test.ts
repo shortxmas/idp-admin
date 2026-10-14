@@ -68,6 +68,27 @@ describe("errors", () => {
         )
     })
 
+    it("names the group a user was removed from", () => {
+        const error = new AccessReductionIncompleteError({ userId: "u-1", action: "removed-from-group", group: "Admin", failedStep: "hook", cause: "db down" })
+
+        expect(error.group).toBe("Admin")
+        expect(error.message).toBe(
+            "User u-1 was removed from group Admin at the provider, but the access-reduced hook failed: db down. " +
+            "Calling the same method again is safe and retries it.",
+        )
+    })
+
+    it("gives the recovery for a group deletion that stopped part way", () => {
+        const error = new AccessReductionIncompleteError({
+            userId: "u-1", action: "removed-from-group", group: "Admin", failedStep: "hook", cause: "db down", deletingGroup: true,
+        })
+
+        expect(error.message).toBe(
+            "User u-1 was removed from group Admin at the provider, but the access-reduced hook failed: db down. " +
+            "The group wasn't deleted. Call removeFromGroup for this user and group, then deleteGroup again.",
+        )
+    })
+
     it("lets a switch on code narrow to the matching error", () => {
         const describe = (error: AnyIdpAdminError) => {
             switch(error.code){
