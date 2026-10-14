@@ -6,7 +6,7 @@ One file per published entry point. This file covers the core, `idp-admin`: the 
 |---|---|
 | `idp-admin` | This file |
 | `idp-admin/fake` | [fake.md](fake.md) |
-| `idp-admin/cognito` | `cognito.md` (not built yet) |
+| `idp-admin/cognito` | [cognito.md](cognito.md) |
 | `idp-admin/keycloak` | [keycloak.md](keycloak.md) |
 
 `IdpAdmin`, the class apps call, is not built yet. Until it is, the adapters are usable directly, but without the shared rules (email normalisation, the access-reduced hook, provider sign-out, paging, idempotent removal) that `IdpAdmin` adds.

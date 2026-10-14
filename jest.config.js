@@ -10,6 +10,8 @@ try {
 /** @type {import('jest').Config} */
 module.exports = {
   testEnvironment: "node",
+  // the provider tests make many calls to a real Keycloak or Cognito
+  testTimeout: 30_000,
   globalSetup: "./jest.global-setup.js",
   globalTeardown: "./jest.global-teardown.js",
   transform: {

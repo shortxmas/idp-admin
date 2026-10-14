@@ -15,6 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # Keys of the IAM user in infra/cognito-tests. Pull requests from forks get no secrets, so these
+    # are empty there and the Cognito tests are skipped.
+    env:
+      COGNITO_TEST_AWS_ACCESS_KEY_ID: ${{ secrets.COGNITO_TEST_AWS_ACCESS_KEY_ID }}
+      COGNITO_TEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.COGNITO_TEST_AWS_SECRET_ACCESS_KEY }}
+      COGNITO_TEST_REGION: ${{ secrets.COGNITO_TEST_REGION }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +33,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
 
-      # Starts a throwaway Keycloak container for the provider tests and removes it afterwards.
+      # Starts a throwaway Keycloak container, and creates throwaway Cognito user pools, for the
+      # provider tests, and removes them afterwards.
       - run: npm test
       - run: npm run build
 
