@@ -1,0 +1,71 @@
+{
+  "name": "idp-admin",
+  "version": "0.0.1",
+  "description": "One user-management API for any identity provider.",
+  "keywords": [
+    "identity-provider",
+    "idp",
+    "user-management",
+    "users",
+    "groups",
+    "admin",
+    "iam",
+    "oidc",
+    "cognito",
+    "keycloak"
+  ],
+  "license": "MIT",
+  "author": "Leighton Miguel",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shortxmas/idp-admin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shortxmas/idp-admin/issues"
+  },
+  "homepage": "https://github.com/shortxmas/idp-admin#readme",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./cognito": {
+      "types": "./dist/cognito/index.d.ts",
+      "default": "./dist/cognito/index.js"
+    },
+    "./keycloak": {
+      "types": "./dist/keycloak/index.d.ts",
+      "default": "./dist/keycloak/index.js"
+    },
+    "./fake": {
+      "types": "./dist/fake/index.d.ts",
+      "default": "./dist/fake/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build",
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.4",
+    "jest": "^30.5.2",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}

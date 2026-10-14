@@ -25,7 +25,7 @@ This package came out of exactly that situation: two production apps, each with 
 - **One interface** for everyday user administration: creating, finding, enabling and disabling, and deleting users, managing groups and group membership, and listing users.
 - **An adapter for each provider**, all behaving the same way: the same user statuses, the same errors, the same notion of who a user is (the ID from their sign-in token), and the same safe handling of input and pagination.
 - **A single place to react when access is reduced**, so the app can end that person's sessions every time, whichever code path made the change.
-- **An in-memory provider** for fast tests with no containers or cloud accounts.
+- **A fake provider** that keeps everything in memory, for fast tests with no containers or cloud accounts.
 - **A shared test suite** that every adapter must pass. It defines what "behaves the same" means, so a new adapter can be trusted when the suite passes.
 
 ## What it isn't
@@ -37,9 +37,9 @@ This package came out of exactly that situation: two production apps, each with 
 
 ## Providers
 
-The first release includes Cognito, Keycloak and the in-memory provider: the ones we run in production and can test properly.
+The first release includes Cognito, Keycloak and the fake provider: the ones we run in production and can test properly.
 
-The interface is designed so that other providers (Entra ID, Auth0, Okta, Zitadel, Authentik and more) can be added through the same contract, either here or as separately published adapters that pass the shared test suite.
+The interface is designed so that other providers (Entra ID, Auth0, Okta, Zitadel, Authentik and more) can be added through the same contract. Each one is contributed here and must pass the shared test suite.
 
 ## License
 
