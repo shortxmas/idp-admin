@@ -22,7 +22,7 @@ const fake = new FakeAdapter({ attributes: ["company"] })
 ## Behaviour
 
 - **Ids** are UUID v4s from `crypto.randomUUID()`.
-- **Emails** are matched exactly. They arrive already lowercased (`IdpAdmin` normalises them), so the fake doesn't lowercase again.
+- **Emails** are matched exactly. The adapter contract expects them already lowercased and trimmed, so the fake doesn't lowercase again; pass them that way when calling it directly.
 - **Status:**
   - a user from `createUser` or `createUserWithInvite` starts as `password_change_required`
   - `setPassword` with `temporary: true` sets `password_change_required`, and with `temporary: false` sets `active`

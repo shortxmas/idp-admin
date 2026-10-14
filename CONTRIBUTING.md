@@ -45,7 +45,7 @@ Setup:
 
 | Path | Published as | Purpose |
 |---|---|---|
-| `src/index.ts` | `idp-admin` | Core: the shared interface, user and group types, errors, hooks |
+| `src/index.ts` | `idp-admin` | Core: the adapter contract, user and group types, errors |
 | `src/cognito/` | `idp-admin/cognito` | Amazon Cognito adapter |
 | `src/keycloak/` | `idp-admin/keycloak` | Keycloak adapter |
 | `src/fake/` | `idp-admin/fake` | Fake adapter that keeps everything in memory: the reference implementation, and a provider for tests |

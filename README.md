@@ -6,7 +6,13 @@ Apps that sign people in through an identity provider (Cognito, Keycloak, Entra 
 
 idp-admin is that layer, written once.
 
-> **Status:** early development. Not yet published.
+> **Status:** 0.x, so the API may still change between minor versions. The adapters are published and usable directly; `IdpAdmin`, the class that adds the shared rules on top of them (including the access-reduced hook below), isn't built yet.
+
+```sh
+npm install idp-admin
+```
+
+The reference for every entry point is in [docs](docs/index.md).
 
 ## Why it exists
 
@@ -37,7 +43,7 @@ This package came out of exactly that situation: two production apps, each with 
 
 ## Providers
 
-The first release includes Cognito, Keycloak and the fake provider: the ones we run in production and can test properly.
+Cognito, Keycloak and the fake provider are included today: the ones we run in production and can test properly.
 
 The interface is designed so that other providers (Entra ID, Auth0, Okta, Zitadel, Authentik and more) can be added through the same contract. Each one is contributed here and must pass the shared test suite.
 
