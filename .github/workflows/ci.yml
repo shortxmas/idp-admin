@@ -25,6 +25,8 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+
+      # Starts a throwaway Keycloak container for the provider tests and removes it afterwards.
       - run: npm test
       - run: npm run build
 
