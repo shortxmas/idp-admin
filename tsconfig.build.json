@@ -5,6 +5,6 @@
     "sourceMap": false,
     "declarationMap": false
   },
-  // test-realm.ts creates throwaway Keycloak realms for the tests
-  "exclude": ["src/**/*.test.ts", "src/keycloak/test-realm.ts"]
+  // test-realm.ts and test-pool.ts create throwaway Keycloak realms and Cognito pools for the tests
+  "exclude": ["src/**/*.test.ts", "src/keycloak/test-realm.ts", "src/cognito/test-pool.ts"]
 }

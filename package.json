@@ -59,7 +59,16 @@
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },
+  "peerDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-cognito-identity-provider": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1151.0",
     "@swc/core": "^1.16.13",
     "@swc/jest": "^0.2.39",
     "@types/jest": "^30.0.0",
