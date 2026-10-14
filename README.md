@@ -6,13 +6,7 @@ Apps that sign people in through an identity provider (Cognito, Keycloak, Entra 
 
 idp-admin is that layer, written once.
 
-> **Status:** 0.x, so the API may still change between minor versions. The adapters are published and usable directly; `IdpAdmin`, the class that adds the shared rules on top of them (including the access-reduced hook below), isn't built yet.
-
-```sh
-npm install idp-admin
-```
-
-The reference for every entry point is in [docs](docs/index.md).
+> **Status:** 0.x, so the API may still change between minor versions. The adapters are published and usable directly; `IdpAdmin`, the class that adds the shared rules on top of them (including the access-reduced hook below), isn't built yet. See the [quick start](#quick-start) and the [reference](docs/index.md).
 
 ## Why it exists
 
@@ -40,6 +34,83 @@ This package came out of exactly that situation: two production apps, each with 
 - **Not a sync tool.** It doesn't copy users into your database. The identity provider stays the source of truth.
 - **Not a lowest common denominator.** Providers differ, and some features don't exist everywhere. Adapters declare what they support, and you can always reach the provider's own SDK for anything the shared interface doesn't cover.
 - **Not a UI.** It's the server-side layer an admin screen, a background job or a seed script would call.
+
+## Quick start
+
+```sh
+npm install idp-admin
+npm install @aws-sdk/client-cognito-identity-provider   # only for Cognito
+```
+
+Pick an adapter for your provider. Each one's setup (credentials, permissions, realm or pool settings) is in its doc: [Cognito](docs/cognito.md), [Keycloak](docs/keycloak.md), [fake](docs/fake.md).
+
+```ts
+import type { IdpAdapter } from "idp-admin"
+import { CognitoAdapter } from "idp-admin/cognito"
+import { KeycloakAdapter } from "idp-admin/keycloak"
+
+// Cognito in production, Keycloak in a container locally: the rest of the app doesn't know which
+const idp: IdpAdapter<"company"> = process.env.COGNITO_USER_POOL_ID
+    ? new CognitoAdapter({
+        userPoolId: process.env.COGNITO_USER_POOL_ID,
+        region: "us-east-1",
+        attributes: { company: "custom:companyName" },
+    })
+    : new KeycloakAdapter({
+        issuer: "http://localhost:8080/realms/acme",
+        clientId: "acme-admin",
+        clientSecret: process.env.KEYCLOAK_ADMIN_SECRET!,
+        attributes: { company: "companyName" },
+    })
+```
+
+`attributes` maps the names your app uses to the provider's own, and only those names compile.
+
+```ts
+import { UserExistsError } from "idp-admin"
+
+// create a user who must set their own password at first sign-in; send them the temporary one yourself
+try{
+    const user = await idp.createUser({
+        email: "dana@example.com",
+        name: "Dana Lee",
+        attributes: { company: "Acme" },
+        temporaryPassword: "Temp-pass-1!",
+    })
+    if(!(await idp.groupExists("admins"))) await idp.createGroup("admins")
+    await idp.addToGroup(user.id, "admins")
+}catch(error){
+    if(error instanceof UserExistsError) console.log("already invited")
+    else throw error
+}
+
+// take access away, and end the sessions the provider already issued
+const dana = await idp.findUserByEmail("dana@example.com")
+if(dana){
+    await idp.setEnabled(dana.id, false)
+    await idp.signOutEverywhere(dana.id)
+}
+
+// list everyone, a page at a time
+let cursor: string | null = null
+do{
+    const page = await idp.listUsersPage(cursor)
+    for(const user of page.items) console.log(user.email, user.status, user.enabled)
+    cursor = page.nextCursor
+}while(cursor)
+```
+
+A user's `id` is the `sub` in their sign-in tokens, so it matches what your auth library gives you. Pass emails lowercased and trimmed, and `findUserByEmail` returns `null` while `getUser` throws `UserNotFoundError`. The full list of methods, types and errors is in [docs/index.md](docs/index.md).
+
+In tests, use the fake instead. It keeps everything in memory and records what a real provider would have done:
+
+```ts
+import { FakeAdapter } from "idp-admin/fake"
+
+const fake = new FakeAdapter({ attributes: ["company"] })
+// ...run the code under test with `fake` as its IdpAdapter, then:
+expect(fake.signOuts).toContain(userId)
+```
 
 ## Providers
 
