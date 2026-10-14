@@ -48,6 +48,16 @@ export class FakeAdapter<const TAttr extends string = never> implements IdpAdapt
         return copy(this.#add(input, "federated"))
     }
 
+    /**
+     * Requires the user to reset their password, as an admin reset at a real provider does, so their
+     * status becomes `password_reset_required` until a password is set. Only the fake can do this
+     * directly. A federated user is unaffected. Synchronous. @throws {UserNotFoundError}
+     */
+    requirePasswordReset(userId: string): void{
+        const user = this.#user(userId)
+        if(user.status !== "federated") user.status = "password_reset_required"
+    }
+
     async createUser(input: AdapterCreateUserInput<TAttr>): Promise<IdpUser<TAttr>>{
         return copy(this.#add(input, "password_change_required"))
     }

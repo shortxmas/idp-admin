@@ -26,7 +26,8 @@ const fake = new FakeAdapter({ attributes: ["company"] })
 - **Status:**
   - a user from `createUser` or `createUserWithInvite` starts as `password_change_required`
   - `setPassword` with `temporary: true` sets `password_change_required`, and with `temporary: false` sets `active`
-  - a federated user stays `federated` whatever `setPassword` does, because they sign in elsewhere
+  - `requirePasswordReset` sets `password_reset_required`, until a password is set
+  - a federated user stays `federated` whatever `setPassword` or `requirePasswordReset` does, because they sign in elsewhere
 - **Disabling** changes `enabled` only; the status is kept.
 - **Lists** return items in creation order. A cursor is the offset of the next page's first item.
 - **Copies:** every user returned is a copy, so changing it doesn't change the stored user.
@@ -41,6 +42,14 @@ const admin = fake.addFederatedUser({ email: "admin@mc3.co", name: "An Admin", a
 ```
 
 Adds a user who signs in through another identity provider (SSO), with status `federated`. A real provider creates these when someone first signs in through SSO, so only the fake can add one directly. Synchronous. Throws `UserExistsError` if the email is taken.
+
+### `requirePasswordReset(userId)`
+
+```ts
+fake.requirePasswordReset(user.id)
+```
+
+Puts the user into `password_reset_required`, as an admin reset at a real provider does, so tests can cover that state. It lasts until a password is set with `setPassword`. A federated user is unaffected. Synchronous. Throws `UserNotFoundError` for an unknown id.
 
 ### `invitations`
 

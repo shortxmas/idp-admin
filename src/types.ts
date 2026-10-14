@@ -3,10 +3,12 @@
  *
  * - `active`: has a permanent password, or otherwise needs nothing before signing in
  * - `password_change_required`: has a temporary password and must set their own at next sign-in
+ * - `password_reset_required`: must reset their password through the provider's forgot-password flow;
+ *   a temporary password won't sign them in
  * - `federated`: signs in through another identity provider (SSO), so has no password here
  * - `unconfirmed`: signed themselves up and hasn't confirmed their account yet
  */
-export type UserStatus = "active" | "password_change_required" | "federated" | "unconfirmed"
+export type UserStatus = "active" | "password_change_required" | "password_reset_required" | "federated" | "unconfirmed"
 
 /**
  * Custom attributes, keyed by the names the app declared in its adapter's config. Values are strings,

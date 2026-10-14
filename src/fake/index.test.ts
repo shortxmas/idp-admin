@@ -115,4 +115,39 @@ describe("FakeAdapter", () => {
             expect(() => fake.addFederatedUser({ email: "admin@mc3.co" })).toThrow(UserExistsError)
         })
     })
+
+    describe("requirePasswordReset", () => {
+        it("puts a user into password_reset_required, as an admin reset at a real provider would", async () => {
+            const fake = new FakeAdapter()
+            const user = await fake.createUser({ email: "dana@acme.co", temporaryPassword: "Temp-pass-1" })
+            await fake.setPassword(user.id, "Their-own-1!", { temporary: false })
+
+            fake.requirePasswordReset(user.id)
+
+            expect((await fake.getUser(user.id)).status).toBe("password_reset_required")
+        })
+
+        it("is cleared by setting a password", async () => {
+            const fake = new FakeAdapter()
+            const user = await fake.createUser({ email: "dana@acme.co", temporaryPassword: "Temp-pass-1" })
+            fake.requirePasswordReset(user.id)
+
+            await fake.setPassword(user.id, "Their-own-1!", { temporary: false })
+
+            expect((await fake.getUser(user.id)).status).toBe("active")
+        })
+
+        it("leaves a federated user federated, because they sign in elsewhere", async () => {
+            const fake = new FakeAdapter()
+            const user = fake.addFederatedUser({ email: "admin@mc3.co" })
+
+            fake.requirePasswordReset(user.id)
+
+            expect((await fake.getUser(user.id)).status).toBe("federated")
+        })
+
+        it("throws UserNotFoundError for an unknown id", () => {
+            expect(() => new FakeAdapter().requirePasswordReset("nope")).toThrow(UserNotFoundError)
+        })
+    })
 })
