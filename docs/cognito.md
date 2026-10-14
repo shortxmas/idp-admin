@@ -47,7 +47,8 @@ Every one of them can be limited to the pool's ARN, `arn:aws:cognito-idp:<region
   | Cognito `UserStatus` | `status` |
   |---|---|
   | `CONFIRMED` | `active` |
-  | `FORCE_CHANGE_PASSWORD`, `RESET_REQUIRED`, `COMPROMISED` | `password_change_required` |
+  | `FORCE_CHANGE_PASSWORD` | `password_change_required` |
+  | `RESET_REQUIRED`, `COMPROMISED` | `password_reset_required` |
   | `UNCONFIRMED` | `unconfirmed` |
   | `EXTERNAL_PROVIDER` | `federated` |
   | anything else | `active` |

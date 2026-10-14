@@ -45,9 +45,10 @@ type CognitoUser = Pick<UserType, "Username" | "Attributes" | "UserStatus" | "En
 const STATUSES: Record<string, UserStatus> = {
     CONFIRMED: "active",
     FORCE_CHANGE_PASSWORD: "password_change_required",
-    RESET_REQUIRED: "password_change_required",
-    // Cognito suspects the password leaked, so the user must set a new one
-    COMPROMISED: "password_change_required",
+    // an admin reset the password; the user must use the forgot-password code to set a new one
+    RESET_REQUIRED: "password_reset_required",
+    // Cognito suspects the password leaked, so the user must reset it the same way
+    COMPROMISED: "password_reset_required",
     UNCONFIRMED: "unconfirmed",
     EXTERNAL_PROVIDER: "federated",
 }

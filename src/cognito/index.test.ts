@@ -133,7 +133,9 @@ describe("CognitoAdapter statuses", () => {
     it.each([
         ["CONFIRMED", "active"],
         ["FORCE_CHANGE_PASSWORD", "password_change_required"],
-        ["RESET_REQUIRED", "password_change_required"],
+        // a temporary password won't get them in; they must reset through the forgot-password flow
+        ["RESET_REQUIRED", "password_reset_required"],
+        ["COMPROMISED", "password_reset_required"],
         ["UNCONFIRMED", "unconfirmed"],
         ["EXTERNAL_PROVIDER", "federated"],
     ])("reports %s as %s", async (cognitoStatus, status) => {

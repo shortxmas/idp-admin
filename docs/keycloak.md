@@ -43,6 +43,7 @@ Also worth knowing: by default Keycloak requires a first and last name before an
   - `federated`: the user is linked to an identity provider (they signed in through SSO). This takes precedence over everything else.
   - `password_change_required`: the user has Keycloak's `UPDATE_PASSWORD` required action, which a temporary password sets.
   - `unconfirmed`: the user has the `VERIFY_EMAIL` required action.
+  - never `password_reset_required`: an admin reset in Keycloak sets the same `UPDATE_PASSWORD` action as a temporary password, so it reports `password_change_required`.
   - `active`: anything else.
 - **Attributes** are stored as single-value Keycloak attributes under their Keycloak names. `updateAttributes` keeps every attribute the app didn't declare, including ones set by other apps.
 - **Groups** are top-level realm groups, addressed by exact name. Subgroups aren't supported.

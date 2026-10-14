@@ -106,13 +106,14 @@ type IdpUser<TAttr extends string = never> = {
 ### `UserStatus`
 
 ```ts
-type UserStatus = "active" | "password_change_required" | "federated" | "unconfirmed"
+type UserStatus = "active" | "password_change_required" | "password_reset_required" | "federated" | "unconfirmed"
 ```
 
 | Value | Meaning |
 |---|---|
 | `active` | Has a permanent password, or otherwise needs nothing before signing in. |
 | `password_change_required` | Has a temporary password and must set their own at next sign-in. |
+| `password_reset_required` | Must reset their password through the provider's forgot-password flow. A temporary password won't sign them in. Only some providers report it. |
 | `federated` | Signs in through another identity provider (SSO), so has no password here. |
 | `unconfirmed` | Signed themselves up and hasn't confirmed their account yet. |
 
