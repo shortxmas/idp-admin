@@ -1,6 +1,6 @@
 # idp-admin reference
 
-One file per published entry point. This file covers the core, `idp-admin`: the types every adapter shares, the errors, and the adapter contract.
+One file per published entry point. This file covers the core, `idp-admin`: `IdpAdmin`, the types every adapter shares, the errors, and the adapter contract.
 
 | Entry point | Doc |
 |---|---|
@@ -9,7 +9,75 @@ One file per published entry point. This file covers the core, `idp-admin`: the 
 | `idp-admin/cognito` | [cognito.md](cognito.md) |
 | `idp-admin/keycloak` | [keycloak.md](keycloak.md) |
 
-`IdpAdmin`, the class apps call, is not built yet. Until it is, the adapters are usable directly, but without the shared rules (email normalisation, the access-reduced hook, provider sign-out, paging, idempotent removal) that `IdpAdmin` adds.
+## `IdpAdmin`
+
+What apps call. It wraps one adapter and adds the rules every provider shares.
+
+```ts
+import { IdpAdmin } from "idp-admin"
+import { CognitoAdapter } from "idp-admin/cognito"
+
+const admin = new IdpAdmin(new CognitoAdapter({ userPoolId, region: "us-east-1" }), {
+    onAccessReduced: ({ userId }) => revokeAllSessionsFor(userId),
+})
+```
+
+`TAttr`, the attribute names, comes from the adapter, so `admin.createUser` accepts exactly the attributes that adapter declares.
+
+### Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `onAccessReduced` | none | Called after a user is deleted, disabled or removed from a group, with an `AccessReducedEvent`. Use it to end the app's own sessions for that user. It may be sync or async. It can run more than once for the same change, so it must be safe to repeat. |
+
+```ts
+type AccessReducedEvent =
+    | { userId: string; action: "deleted" | "disabled" }
+    | { userId: string; action: "removed-from-group"; group: string }
+```
+
+### Shared rules
+
+- **Emails** are trimmed and lowercased before they reach the adapter, in `createUser`, `createUserWithInvite` and `findUserByEmail`. `Dana@Example.com` and `dana@example.com` are the same user.
+- **Taking access away** (`deleteUser`, `disableUser`, `removeFromGroup`) runs these steps in order:
+  1. the change at the provider
+  2. provider sign-out (`signOutEverywhere`), for `disableUser` and `removeFromGroup`. Deleting already ends the user's tokens at the provider, so `deleteUser` skips it
+  3. `onAccessReduced`
+
+  If step 2 or 3 fails, the method throws `AccessReductionIncompleteError` and the provider change stands. All three methods are safe to repeat and run every step each time, so calling the same method again is the recovery.
+- **Provider sign-out revokes refresh tokens.** Access and ID tokens already issued stay valid until they expire (about an hour by default on Cognito). Ending the app's sessions in `onAccessReduced` is what takes effect immediately.
+- **Lists** are async iterators over the adapter's pages. The next page is fetched only when the loop reaches it, and `break` stops fetching.
+- **Optional features:** a method the adapter lacks throws `NotSupportedError`. `supports` tells you beforehand.
+
+### Methods
+
+| Method | Returns | Behaviour |
+|---|---|---|
+| `createUser({ email, name?, attributes?, temporaryPassword })` | `IdpUser` | The user must replace `temporaryPassword` at first sign-in. The provider sends no message, so send your own. Throws `UserExistsError`. |
+| `createUserWithInvite({ email, name?, attributes? })` | `IdpUser` | The provider generates a password and emails its own invitation. Throws `UserExistsError`, or `NotSupportedError` if the adapter can't. |
+| `getUser(userId)` | `IdpUser` | Throws `UserNotFoundError`. |
+| `findUserByEmail(email)` | `IdpUser \| null` | `null` when nobody has that email. |
+| `listUsers()` | `AsyncGenerator<IdpUser>` | Every user. |
+| `setPassword(userId, password, { temporary })` | `void` | A temporary password must be replaced at next sign-in. |
+| `updateAttributes(userId, attributes)` | `void` | Sets the given attributes and leaves the rest unchanged. |
+| `resendInvite(userId)` | `void` | Sends the provider's invitation again. Throws `NotSupportedError` if the adapter can't. |
+| `enableUser(userId)` | `void` | |
+| `disableUser(userId)` | `void` | Then provider sign-out, then `onAccessReduced`. Succeeds if already disabled. |
+| `deleteUser(userId)` | `boolean` | Then `onAccessReduced`. `true` if a user was deleted, `false` if they were already gone; the hook runs either way. |
+| `signOutEverywhere(userId)` | `void` | Revokes the user's tokens at the provider. Doesn't call `onAccessReduced`. |
+| `addToGroup(userId, group)` | `void` | Succeeds if they're already a member. Throws `GroupNotFoundError`. |
+| `removeFromGroup(userId, group)` | `void` | Then provider sign-out, then `onAccessReduced`. Succeeds if they aren't a member or the group doesn't exist. |
+| `listUserGroups(userId)` | `AsyncGenerator<string>` | The names of the groups a user is in. |
+| `listGroupMembers(group)` | `AsyncGenerator<IdpUser>` | Throws `GroupNotFoundError`. |
+| `ensureGroup(group)` | `void` | Creates the group, or does nothing if it exists, including when another caller creates it at the same moment. |
+| `deleteGroup(group)` | `void` | Removes every member first. Doesn't call `onAccessReduced`; to end members' sessions, call `removeFromGroup` for each before deleting it. |
+
+Unless a row says otherwise, a method addressing a missing user throws `UserNotFoundError`.
+
+| Property | Meaning |
+|---|---|
+| `adapter` | The adapter passed in, for its `native` client and anything the shared methods don't cover. Calls made on it directly skip the shared rules. |
+| `supports` | `{ createUserWithInvite: boolean; resendInvite: boolean }`: which optional features the adapter has. |
 
 ## Types
 
@@ -87,7 +155,7 @@ Every error idp-admin throws on purpose extends `IdpAdminError`, so `instanceof 
 
 ## `IdpAdapter<TAttr>`
 
-The contract every adapter implements: plain translation to one provider's admin API. Shared rules live in `IdpAdmin`, so an adapter can't get them wrong. Apps don't normally call adapters directly.
+The contract every adapter implements: plain translation to one provider's admin API. Shared rules live in `IdpAdmin`, so an adapter can't get them wrong. Apps call `IdpAdmin`, not adapters; this section is for writing an adapter.
 
 Every user is addressed by `userId`, the provider's permanent id. A method that addresses a user who doesn't exist throws `UserNotFoundError`; one that addresses a group that doesn't exist throws `GroupNotFoundError`. Emails passed in are already lowercased and trimmed.
 

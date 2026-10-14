@@ -11,4 +11,5 @@ export {
     type AccessReductionStep,
     type AnyIdpAdminError,
 } from "./errors"
+export { IdpAdmin, type AccessReducedEvent, type IdpAdminOptions, type IdpAdminSupports } from "./idp-admin"
 export type { IdpUser, Page, UserAttributes, UserStatus } from "./types"

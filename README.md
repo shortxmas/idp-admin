@@ -6,7 +6,7 @@ Apps that sign people in through an identity provider (Cognito, Keycloak, Entra 
 
 idp-admin is that layer, written once.
 
-> **Status:** 0.x, so the API may still change between minor versions. The adapters are published and usable directly; `IdpAdmin`, the class that adds the shared rules on top of them (including the access-reduced hook below), isn't built yet. See the [quick start](#quick-start) and the [reference](docs/index.md).
+> **Status:** 0.x, so the API may still change between minor versions. See the [quick start](#quick-start) and the [reference](docs/index.md).
 
 ## Why it exists
 
@@ -42,15 +42,15 @@ npm install idp-admin
 npm install @aws-sdk/client-cognito-identity-provider   # only for Cognito
 ```
 
-Pick an adapter for your provider. Each one's setup (credentials, permissions, realm or pool settings) is in its doc: [Cognito](docs/cognito.md), [Keycloak](docs/keycloak.md), [fake](docs/fake.md).
+Wrap the adapter for your provider in `IdpAdmin`. Each adapter's setup (credentials, permissions, realm or pool settings) is in its doc: [Cognito](docs/cognito.md), [Keycloak](docs/keycloak.md), [fake](docs/fake.md).
 
 ```ts
-import type { IdpAdapter } from "idp-admin"
+import { IdpAdmin } from "idp-admin"
 import { CognitoAdapter } from "idp-admin/cognito"
 import { KeycloakAdapter } from "idp-admin/keycloak"
 
 // Cognito in production, Keycloak in a container locally: the rest of the app doesn't know which
-const idp: IdpAdapter<"company"> = process.env.COGNITO_USER_POOL_ID
+const adapter = process.env.COGNITO_USER_POOL_ID
     ? new CognitoAdapter({
         userPoolId: process.env.COGNITO_USER_POOL_ID,
         region: "us-east-1",
@@ -62,6 +62,11 @@ const idp: IdpAdapter<"company"> = process.env.COGNITO_USER_POOL_ID
         clientSecret: process.env.KEYCLOAK_ADMIN_SECRET!,
         attributes: { company: "companyName" },
     })
+
+const admin = new IdpAdmin(adapter, {
+    // runs whenever someone loses access, so their sessions in your app end too
+    onAccessReduced: ({ userId }) => revokeAllSessionsFor(userId),
+})
 ```
 
 `attributes` maps the names your app uses to the provider's own, and only those names compile.
@@ -71,36 +76,28 @@ import { UserExistsError } from "idp-admin"
 
 // create a user who must set their own password at first sign-in; send them the temporary one yourself
 try{
-    const user = await idp.createUser({
-        email: "dana@example.com",
+    const user = await admin.createUser({
+        email: "Dana@Example.com",   // stored and matched as dana@example.com
         name: "Dana Lee",
         attributes: { company: "Acme" },
         temporaryPassword: "Temp-pass-1!",
     })
-    if(!(await idp.groupExists("admins"))) await idp.createGroup("admins")
-    await idp.addToGroup(user.id, "admins")
+    await admin.ensureGroup("admins")
+    await admin.addToGroup(user.id, "admins")
 }catch(error){
     if(error instanceof UserExistsError) console.log("already invited")
     else throw error
 }
 
-// take access away, and end the sessions the provider already issued
-const dana = await idp.findUserByEmail("dana@example.com")
-if(dana){
-    await idp.setEnabled(dana.id, false)
-    await idp.signOutEverywhere(dana.id)
-}
+// take access away: disabled at the provider, signed out there, then onAccessReduced
+const dana = await admin.findUserByEmail("dana@example.com")
+if(dana) await admin.disableUser(dana.id)
 
-// list everyone, a page at a time
-let cursor: string | null = null
-do{
-    const page = await idp.listUsersPage(cursor)
-    for(const user of page.items) console.log(user.email, user.status, user.enabled)
-    cursor = page.nextCursor
-}while(cursor)
+// everyone, fetched a page at a time behind the scenes
+for await (const user of admin.listUsers()) console.log(user.email, user.status, user.enabled)
 ```
 
-A user's `id` is the `sub` in their sign-in tokens, so it matches what your auth library gives you. Pass emails lowercased and trimmed, and `findUserByEmail` returns `null` while `getUser` throws `UserNotFoundError`. The full list of methods, types and errors is in [docs/index.md](docs/index.md).
+A user's `id` is the `sub` in their sign-in tokens, so it matches what your auth library gives you, and it's what `onAccessReduced` receives. `findUserByEmail` returns `null` while `getUser` throws `UserNotFoundError`. If ending sessions fails after the provider change, the method throws `AccessReductionIncompleteError`, and calling it again is safe. The full list of methods, types and errors is in [docs/index.md](docs/index.md).
 
 In tests, use the fake instead. It keeps everything in memory and records what a real provider would have done:
 
@@ -108,7 +105,8 @@ In tests, use the fake instead. It keeps everything in memory and records what a
 import { FakeAdapter } from "idp-admin/fake"
 
 const fake = new FakeAdapter({ attributes: ["company"] })
-// ...run the code under test with `fake` as its IdpAdapter, then:
+const admin = new IdpAdmin(fake, { onAccessReduced })
+// ...run the code under test with `admin`, then:
 expect(fake.signOuts).toContain(userId)
 ```
 

@@ -10,7 +10,7 @@ npm run typecheck   # tsc --noEmit
 
 - **Test-driven:** write the test first and watch it fail, then implement.
 - **Test layout:** one test file per source file, next to it. `fake/index.ts` has `fake/index.test.ts`. The exceptions are `src/adapters.test.ts` (see below), and `src/keycloak/test-realm.ts` and `src/cognito/test-pool.ts`, helpers each provider's tests share, which the build leaves out.
-- **Adapter conformance:** `src/adapters.test.ts` runs the same scenarios against every adapter: creating duplicates, escaping, pagination, federated users, idempotent group changes and so on. A new adapter is added to the list in that file and must pass all of it. Behaviour every adapter shares gets its test there; anything specific to one provider goes in that adapter's own test file.
+- **Adapter conformance:** `src/adapters.test.ts` runs the same scenarios against every adapter: creating duplicates, escaping, pagination, federated users, idempotent group changes and so on. A new adapter is added to the list in that file and must pass all of it. Behaviour every adapter shares gets its test there; anything specific to one provider goes in that adapter's own test file. Rules that don't depend on the provider (normalising emails, the access-reduced hook, paging, optional features) belong in `IdpAdmin`, not in adapters, and are tested once in `src/idp-admin.test.ts`, against the fake.
 - **Provider tests:** adapters are tested against real providers, configured through `.env`. `jest.config.js` loads `.env`, and variables already set in the environment take precedence. A provider whose tests need a cloud account is skipped when its settings are missing; CI always sets them.
   - **Cognito:** runs against real Cognito with the static access keys of an IAM user that can touch only user pools it created; `infra/cognito-tests` has its Terraform and how to get the keys. Put `COGNITO_TEST_AWS_ACCESS_KEY_ID`, `COGNITO_TEST_AWS_SECRET_ACCESS_KEY` and `COGNITO_TEST_REGION` in `.env`, or the Cognito tests are skipped. They never use your own AWS credentials. Each test file creates one user pool and empties it between tests, and each run deletes test pools more than an hour old that an interrupted run left behind. A full run creates a few dozen users and sends two invitation emails, to `example.com`. Real Cognito only creates SSO users at an actual SSO sign-in, so the shared federated-user scenarios are skipped for Cognito, and `src/cognito/index.test.ts` covers SSO users with a stub client instead.
   - **Keycloak:** `npm test` needs Docker. `jest.global-setup.js` starts a throwaway Keycloak 26 container on a free port before the tests, and `jest.global-teardown.js` removes it afterwards, including when a run is interrupted. Each test creates its own realm and deletes it. The first run downloads the image. To skip the container start on repeated runs, run a Keycloak yourself and set `KEYCLOAK_TEST_URL` and its admin credentials (see `.env.example`).
@@ -45,7 +45,7 @@ Setup:
 
 | Path | Published as | Purpose |
 |---|---|---|
-| `src/index.ts` | `idp-admin` | Core: the adapter contract, user and group types, errors |
+| `src/index.ts` | `idp-admin` | Core: `IdpAdmin`, the adapter contract, user and group types, errors |
 | `src/cognito/` | `idp-admin/cognito` | Amazon Cognito adapter |
 | `src/keycloak/` | `idp-admin/keycloak` | Keycloak adapter |
 | `src/fake/` | `idp-admin/fake` | Fake adapter that keeps everything in memory: the reference implementation, and a provider for tests |

@@ -470,11 +470,3 @@ describe.each(adapters)("$name", ({ skip, federation, setup, ...hooks }) => {
         })
     })
 })
-
-// These need IdpAdmin, which isn't built yet; they move to its own test file when it is.
-describe("through IdpAdmin", () => {
-    it.todo("treats emails as case-insensitive")
-    it.todo("fires the access-reduced hook after a user is deleted, disabled or removed from a group")
-    it.todo("fires the hook when deleting a user that is already gone")
-    it.todo("throws NotSupportedError for an optional method the adapter lacks")
-})

@@ -2,7 +2,7 @@
 
 `idp-admin/fake`: an identity provider that keeps users and groups in memory. [Index](index.md)
 
-It's the reference implementation every other adapter is tested against, and a provider for tests that need no container or cloud account. It implements every method of [`IdpAdapter`](index.md#idpadaptertattr), including the optional ones, and adds a few helpers only a fake can offer.
+It's the reference implementation every other adapter is tested against, and a provider for tests that need no container or cloud account: wrap it in `IdpAdmin` like any other adapter, and use the helpers below to check what happened. It implements every method of [`IdpAdapter`](index.md#idpadaptertattr), including the optional ones, and adds a few helpers only a fake can offer.
 
 Not for production: nothing is shared between instances or kept after the process exits.
 
@@ -22,7 +22,7 @@ const fake = new FakeAdapter({ attributes: ["company"] })
 ## Behaviour
 
 - **Ids** are UUID v4s from `crypto.randomUUID()`.
-- **Emails** are matched exactly. The adapter contract expects them already lowercased and trimmed, so the fake doesn't lowercase again; pass them that way when calling it directly.
+- **Emails** are matched exactly. They arrive already lowercased and trimmed (`IdpAdmin` normalises them), so the fake doesn't do it again.
 - **Status:**
   - a user from `createUser` or `createUserWithInvite` starts as `password_change_required`
   - `setPassword` with `temporary: true` sets `password_change_required`, and with `temporary: false` sets `active`
