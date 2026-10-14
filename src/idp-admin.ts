@@ -6,6 +6,7 @@ import {
     NotSupportedError,
     UserNotFoundError,
     type AccessReductionAction,
+    type AccessReductionStep,
 } from "./errors"
 import type { IdpUser, Page, UserAttributes } from "./types"
 
@@ -110,8 +111,7 @@ export class IdpAdmin<TAttr extends string = never>{
      */
     async disableUser(userId: string): Promise<void>{
         await this.adapter.setEnabled(userId, false)
-        await this.#signOut(userId, "disabled")
-        await this.#accessReduced({ userId, action: "disabled" })
+        await this.#reduced({ userId, action: "disabled" }, { signOut: true })
     }
 
     /**
@@ -128,7 +128,7 @@ export class IdpAdmin<TAttr extends string = never>{
             if(!(error instanceof UserNotFoundError)) throw error
             deleted = false
         }
-        await this.#accessReduced({ userId, action: "deleted" })
+        await this.#reduced({ userId, action: "deleted" }, { signOut: false })
         return deleted
     }
 
@@ -152,8 +152,7 @@ export class IdpAdmin<TAttr extends string = never>{
             // nobody is in a group that doesn't exist, but the user must still exist
             await this.adapter.getUser(userId)
         }
-        await this.#signOut(userId, "removed-from-group")
-        await this.#accessReduced({ userId, action: "removed-from-group", group })
+        await this.#reduced({ userId, action: "removed-from-group", group }, { signOut: true })
     }
 
     /** The names of every group the user is in. @throws {UserNotFoundError} */
@@ -177,26 +176,46 @@ export class IdpAdmin<TAttr extends string = never>{
         }
     }
 
-    /** Deletes the group, removing every member from it first. @throws {GroupNotFoundError} */
-    deleteGroup(group: string): Promise<void>{
-        return this.adapter.deleteGroup(group)
+    /**
+     * Removes every member from the group the way `removeFromGroup` does (signed out at the provider, then
+     * `onAccessReduced`), then deletes the group. If a member's step fails it stops there and leaves the
+     * group in place: call `removeFromGroup` for that member, then `deleteGroup` again.
+     * @throws {GroupNotFoundError} @throws {AccessReductionIncompleteError} a member is removed, but a later step failed
+     */
+    async deleteGroup(group: string): Promise<void>{
+        // collected first, because removing members while paging through them would skip some
+        const members: string[] = []
+        for await (const member of this.listGroupMembers(group)) members.push(member.id)
+        for(const userId of members){
+            await this.adapter.removeFromGroup(userId, group)
+            await this.#reduced({ userId, action: "removed-from-group", group }, { signOut: true, deletingGroup: true })
+        }
+        await this.adapter.deleteGroup(group)
     }
 
     // ---- access reduction
 
-    async #signOut(userId: string, action: AccessReductionAction): Promise<void>{
-        try{
-            await this.adapter.signOutEverywhere(userId)
-        }catch(cause){
-            throw new AccessReductionIncompleteError({ userId, action, failedStep: "provider-sign-out", cause })
+    // the steps after a provider change that reduced someone's access: provider sign-out, then the hook
+    async #reduced(event: AccessReducedEvent, options: { signOut: boolean; deletingGroup?: boolean }): Promise<void>{
+        const incomplete = (failedStep: AccessReductionStep, cause: unknown) => new AccessReductionIncompleteError({
+            userId: event.userId,
+            action: event.action,
+            group: event.action === "removed-from-group" ? event.group : undefined,
+            failedStep,
+            cause,
+            deletingGroup: options.deletingGroup,
+        })
+        if(options.signOut){
+            try{
+                await this.adapter.signOutEverywhere(event.userId)
+            }catch(cause){
+                throw incomplete("provider-sign-out", cause)
+            }
         }
-    }
-
-    async #accessReduced(event: AccessReducedEvent): Promise<void>{
         try{
             await this.#onAccessReduced?.(event)
         }catch(cause){
-            throw new AccessReductionIncompleteError({ userId: event.userId, action: event.action, failedStep: "hook", cause })
+            throw incomplete("hook", cause)
         }
     }
 }

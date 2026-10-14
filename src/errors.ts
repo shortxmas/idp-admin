@@ -73,23 +73,37 @@ const STEP_TEXT: Record<AccessReductionStep, string> = {
 /**
  * The provider change happened, but a step after it didn't, so the user may still have live sessions
  * or provider tokens. The provider change is not undone. Calling the same method again is safe: it
- * repeats every step.
+ * repeats every step. The exception is `deleteGroup`, which stops at the member whose step failed and
+ * leaves the group in place: call `removeFromGroup` for that member and group, then `deleteGroup` again.
  */
 export class AccessReductionIncompleteError extends IdpAdminError{
     readonly code = "ACCESS_REDUCTION_INCOMPLETE"
     readonly userId: string
     readonly action: AccessReductionAction
+    // the group the user was removed from, for `removed-from-group`
+    readonly group: string | undefined
     readonly failedStep: AccessReductionStep
 
-    constructor(details: { userId: string; action: AccessReductionAction; failedStep: AccessReductionStep; cause: unknown }){
+    constructor(details: {
+        userId: string
+        action: AccessReductionAction
+        group?: string
+        failedStep: AccessReductionStep
+        cause: unknown
+        // thrown by deleteGroup, which needs a different recovery
+        deletingGroup?: boolean
+    }){
         const reason = details.cause instanceof Error ? details.cause.message : String(details.cause)
-        super(
-            `User ${details.userId} was ${ACTION_TEXT[details.action]} at the provider, but ${STEP_TEXT[details.failedStep]}: ${reason}. ` +
-            "Calling the same method again is safe and retries it.",
-            { cause: details.cause },
-        )
+        const action = details.action === "removed-from-group" && details.group !== undefined
+            ? `removed from group ${details.group}`
+            : ACTION_TEXT[details.action]
+        const recovery = details.deletingGroup
+            ? "The group wasn't deleted. Call removeFromGroup for this user and group, then deleteGroup again."
+            : "Calling the same method again is safe and retries it."
+        super(`User ${details.userId} was ${action} at the provider, but ${STEP_TEXT[details.failedStep]}: ${reason}. ${recovery}`, { cause: details.cause })
         this.userId = details.userId
         this.action = details.action
+        this.group = details.group
         this.failedStep = details.failedStep
     }
 }
